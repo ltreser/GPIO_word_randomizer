@@ -1,4 +1,5 @@
-# Linux Kernel Module: Dynamic Word Buffer & GPIO Event MonitorThis project implements a loadable Linux kernel module that bridges kernel-space and user-space through a file interface and interacts with hardware interrupts via GPIO
+# Linux Kernel Module: Dynamic Word Buffer & GPIO Event Monitor
+This project implements a loadable Linux kernel module that bridges kernel-space and user-space through a file interface and interacts with hardware interrupts via GPIO
 
 ## Features
 - Lifecycle Logging: Emits descriptive log messages to the kernel ring buffer (dmesg) upon loading and unloading.
