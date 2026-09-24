@@ -28,10 +28,12 @@ static size_t				output_len;
 static					DEFINE_MUTEX(buffer_lock);
 static					LIST_HEAD(word_list);
 static int				gpio_pin = -1;  // default gpio pin number when not specified
+static int				irq_number;
 module_param(gpio_pin, int, 0444);
 MODULE_PARM_DESC(gpio_pin, "GPIO pin number to watch via interrupt");
-static int				irq_number;
 
+
+// interrupt handler for GPIO pin, logs random word on rising edge
 static irqreturn_t	gpio_irq_handler(int irq, void *dev_id)
 {
 	int		i;
@@ -63,6 +65,7 @@ static irqreturn_t	gpio_irq_handler(int irq, void *dev_id)
 	return (IRQ_HANDLED);
 }
 
+//write function for the module, adds words to the list
 static ssize_t	module_write(struct file *file, const char __user *buf,
 		size_t len, loff_t *off)
 {
@@ -104,6 +107,8 @@ static ssize_t	module_write(struct file *file, const char __user *buf,
 	return (len);
 }
 
+
+//builds the output string from the list of words, each word separated by a newline
 static void	build_output(void)
 {
 	t_word	*node;
@@ -127,6 +132,8 @@ static void	build_output(void)
 	}
 }
 
+
+//read function for the module, returns the list of words as a string
 static ssize_t	module_read(struct file *file, char __user *buf, size_t len,
 		loff_t *off)
 {
@@ -162,6 +169,8 @@ static struct miscdevice			module_misc_device = {
 	.fops = &module_fops,
 };
 
+
+// module initialization and cleanup functions
 static int __init	module_init_function(void)
 {
 	int	ret;
@@ -213,6 +222,8 @@ err_misc:
 	return (ret);
 }
 
+
+// module cleanup function, frees resources and unregisters device
 static void __exit	module_exit_function(void)
 {
 	t_word *node, *tmp;
