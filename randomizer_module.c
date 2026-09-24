@@ -1,4 +1,3 @@
-//#include <linux/fscrypt.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -9,10 +8,10 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
-//#include <linux/moduleparam.h> 
-//#include <linux/gpio.h> 
-//#include <linux/interrupt.h>
-//#include <linux/random.h>
+#include <linux/moduleparam.h> 
+#include <linux/gpio.h> 
+#include <linux/interrupt.h>
+#include <linux/random.h>
 
 #define BUFFER_SIZE 4096
 
@@ -28,6 +27,42 @@ static char *output;
 static size_t output_len;
 static DEFINE_MUTEX(buffer_lock);
 static LIST_HEAD(word_list);
+static int gpio_pin = -1; // default gpio pin number when not specified
+module_param(gpio_pin, int, 0444);
+MODULE_PARM_DESC(gpio_pin, "GPIO pin number to watch via interrupt");
+static int irq_number;
+
+
+static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
+{
+	int i;
+	int count;
+	t_word *node;
+
+	count = 0;
+	mutex_lock(&buffer_lock);
+	list_for_each_entry(node, &word_list, list)
+	{
+		count++;
+	}
+	if (count == 0)
+	{
+		mutex_unlock(&buffer_lock);
+		return IRQ_HANDLED;
+	}
+	i = get_random_u32() % count;
+	list_for_each_entry(node, &word_list, list)
+	{
+		if (i == 0)
+		{
+			pr_info("Random word: %s\n", node->word);
+			break;
+		}
+		i--;
+	}
+	mutex_unlock(&buffer_lock);
+	return IRQ_HANDLED;
+}
 
 static ssize_t module_write(struct file *file, const char __user *buf, size_t len, loff_t *off)
 {
@@ -111,13 +146,15 @@ static ssize_t module_read(struct file *file, char __user *buf, size_t len, loff
 	return len;
 }
 
-static const struct file_operations module_fops = {
+static const struct file_operations module_fops = 
+{
 	.owner = THIS_MODULE,
 	.read = module_read,
 	.write = module_write,
 };
 
-static struct miscdevice module_misc_device = {
+static struct miscdevice module_misc_device = 
+{
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "module_device",
 	.fops = &module_fops,
@@ -129,7 +166,37 @@ static int __init module_init_function(void)
 	ret = misc_register(&module_misc_device);
 	if (ret)
 	{
-		pr_info("Failed to register misc device\n");
+		pr_err("Error: Failed to register misc device\n");
+		return ret;
+	}
+	if (gpio_pin < 0)
+	{
+		pr_err("Error: GPIO pin number not specified.\n");
+		misc_deregister(&module_misc_device);
+		return -EINVAL;
+	}
+	ret = gpio_request(gpio_pin, "randomizer_gpio");
+	if (ret)
+	{
+		pr_err("Error: Failed to request GPIO pin %d\n", gpio_pin);
+		misc_deregister(&module_misc_device);
+		return ret;
+	}
+	gpio_direction_input(gpio_pin);
+	irq_number = gpio_to_irq(gpio_pin);
+	if (irq_number < 0)
+	{
+		pr_err("Error: Failed to get IRQ number for GPIO pin %d\n", gpio_pin);
+		gpio_free(gpio_pin);
+		misc_deregister(&module_misc_device);
+		return irq_number;
+	}
+	ret = request_threaded_irq(irq_number, NULL, gpio_irq_handler, IRQF_TRIGGER_RISING | IRQF_ONESHOT, "randomizer_gpio_irq", NULL);
+	if (ret)
+	{
+		pr_err("Error: Failed to request IRQ %d for GPIO pin %d\n", irq_number, gpio_pin);
+		gpio_free(gpio_pin);
+		misc_deregister(&module_misc_device);
 		return ret;
 	}
 	pr_info("Module loaded\n");
@@ -139,6 +206,8 @@ static int __init module_init_function(void)
 static void __exit module_exit_function(void)
 {
 	t_word *node, *tmp;
+	free_irq(irq_number, NULL);
+	gpio_free(gpio_pin);
 	mutex_lock(&buffer_lock);
 	list_for_each_entry_safe(node, tmp, &word_list, list)
 	{
