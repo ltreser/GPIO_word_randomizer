@@ -1,0 +1,38 @@
+[67483.042637] test: load without gpio_pin (must fail)
+[67483.067616] Error: GPIO pin number not specified.
+[67483.147697] test: load with gpio_pin=936
+[67483.173172] Module loaded
+[67483.197479] test: write words
+[67483.254468] test: 30 rising edges
+[67483.297451] Random word: nala
+[67483.646747] Random word: momo
+[67483.992318] Random word: katara
+[67484.336971] Random word: gigi
+[67484.694889] Random word: ozai
+[67485.054188] Random word: sokka
+[67485.405399] Random word: gigi
+[67485.755638] Random word: azula
+[67486.109261] Random word: azula
+[67486.456195] Random word: momo
+[67486.807835] Random word: appa
+[67487.159212] Random word: sokka
+[67487.507928] Random word: hello
+[67487.868601] Random word: fritz
+[67488.219755] Random word: nala
+[67488.576197] Random word: azula
+[67488.934059] Random word: iroh
+[67489.278173] Random word: world
+[67489.628384] Random word: aang
+[67489.973139] Random word: appa
+[67490.317888] Random word: appa
+[67490.678149] Random word: toph
+[67491.035329] Random word: world
+[67491.392514] Random word: sokka
+[67491.744598] Random word: momo
+[67492.092280] Random word: azula
+[67492.443405] Random word: nala
+[67492.789005] Random word: katara
+[67493.141812] Random word: fritz
+[67493.498467] Random word: toph
+[67493.827442] test: unload
+[67493.855000] Module unloaded
