@@ -99,6 +99,7 @@ static ssize_t module_write(struct file *file, const char __user *buf, size_t le
 		list_add_tail(&node->list, &word_list);
 	}
 	mutex_unlock(&buffer_lock);
+	kfree(tmp);
 	return len;
 }
 
@@ -163,44 +164,53 @@ static struct miscdevice module_misc_device =
 static int __init module_init_function(void)
 {
 	int ret;
+
+	if (gpio_pin < 0)
+	{
+		pr_err("Error: GPIO pin number not specified.\n");
+		return -EINVAL;
+	}
 	ret = misc_register(&module_misc_device);
 	if (ret)
 	{
 		pr_err("Error: Failed to register misc device\n");
 		return ret;
 	}
-	if (gpio_pin < 0)
-	{
-		pr_err("Error: GPIO pin number not specified.\n");
-		misc_deregister(&module_misc_device);
-		return -EINVAL;
-	}
 	ret = gpio_request(gpio_pin, "randomizer_gpio");
 	if (ret)
 	{
 		pr_err("Error: Failed to request GPIO pin %d\n", gpio_pin);
-		misc_deregister(&module_misc_device);
-		return ret;
+		goto err_misc;
 	}
-	gpio_direction_input(gpio_pin);
+	ret = gpio_direction_input(gpio_pin);
+	if (ret)
+	{
+		pr_err("Error: Failed to set GPIO pin %d as input\n", gpio_pin);
+		goto err_gpio;
+	}
 	irq_number = gpio_to_irq(gpio_pin);
 	if (irq_number < 0)
 	{
 		pr_err("Error: Failed to get IRQ number for GPIO pin %d\n", gpio_pin);
-		gpio_free(gpio_pin);
-		misc_deregister(&module_misc_device);
-		return irq_number;
+		ret = irq_number;
+		goto err_gpio;
 	}
-	ret = request_threaded_irq(irq_number, NULL, gpio_irq_handler, IRQF_TRIGGER_RISING | IRQF_ONESHOT, "randomizer_gpio_irq", NULL);
+	ret = request_threaded_irq(irq_number, NULL, gpio_irq_handler,
+				   IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+				   "randomizer_gpio_irq", NULL);
 	if (ret)
 	{
 		pr_err("Error: Failed to request IRQ %d for GPIO pin %d\n", irq_number, gpio_pin);
-		gpio_free(gpio_pin);
-		misc_deregister(&module_misc_device);
-		return ret;
+		goto err_gpio;
 	}
 	pr_info("Module loaded\n");
 	return 0;
+
+err_gpio:
+	gpio_free(gpio_pin);
+err_misc:
+	misc_deregister(&module_misc_device);
+	return ret;
 }
 
 static void __exit module_exit_function(void)
