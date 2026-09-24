@@ -15,13 +15,13 @@
 
 #define BUFFER_SIZE 4096
 
+typedef struct s_word t_word;
+
 struct s_word 
 {
     char *word;
     struct list_head list;
 };
-
-typedef struct s_word t_word;
 
 static char *buffer;
 static size_t buffer_len;
@@ -100,7 +100,7 @@ static struct miscdevice module_misc_device = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "module_device",
 	.fops = &module_fops,
-}
+};
 
 static int __init module_init_function(void)
 {
