@@ -1,4 +1,4 @@
-#include <linux/fscrypt.h>
+//#include <linux/fscrypt.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -8,6 +8,7 @@
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/seq_file.h>
 //#include <linux/moduleparam.h> 
 //#include <linux/gpio.h> 
 //#include <linux/interrupt.h>
@@ -23,8 +24,8 @@ struct s_word
     struct list_head list;
 };
 
-static char *buffer;
-static size_t buffer_len;
+static char *output;
+static size_t output_len;
 static DEFINE_MUTEX(buffer_lock);
 static LIST_HEAD(word_list);
 
@@ -44,13 +45,9 @@ static ssize_t module_write(struct file *file, const char __user *buf, size_t le
 		kfree(tmp);
 		return -EFAULT;
 	}
-	tmp[len] = '\n';
-	tmp[len + 1] = '\0';
+	tmp[len] = '\0';
 	mutex_lock(&buffer_lock);
-	kfree(buffer);
-	buffer = tmp;
-	buffer_len = len;
-	cursor = buffer;
+	cursor = tmp;
 	while ((token = strsep(&cursor, " \n\t")) != NULL)
 	{
 		if (*token == '\0')
@@ -70,17 +67,41 @@ static ssize_t module_write(struct file *file, const char __user *buf, size_t le
 	return len;
 }
 
+static void build_output(void)
+{
+	t_word *node;
+	kfree(output);
+	output = NULL;
+	output_len = 0;
+	list_for_each_entry(node, &word_list, list)
+	{
+		output_len += strlen(node->word) + 1;
+	}
+	if (output_len == 0)
+		return;
+	output = kzalloc(output_len + 1, GFP_KERNEL); //sets memory to zero, slower than kmalloc
+	if (!output)
+		return;
+	list_for_each_entry(node, &word_list, list)
+	{
+		strcat(output, node->word);
+		strcat(output, "\n");
+	}
+}
+
 static ssize_t module_read(struct file *file, char __user *buf, size_t len, loff_t *off)
 {
 	mutex_lock(&buffer_lock);
-	if (!buffer || *off >= buffer_len)
+	if (*off == 0)
+		build_output();
+	if (!output || *off >= output_len)
 	{
 		mutex_unlock(&buffer_lock);
 		return 0;
 	}
-	if (len > buffer_len - *off)
-		len = buffer_len - *off;
-	if (copy_to_user(buf, buffer + *off, len))
+	if (len > output_len - *off)
+		len = output_len - *off;
+	if (copy_to_user(buf, output + *off, len))
 	{
 		mutex_unlock(&buffer_lock);
 		return -EFAULT;
@@ -125,7 +146,7 @@ static void __exit module_exit_function(void)
 		kfree(node->word);
 		kfree(node);
 	}
-	kfree(buffer);
+	kfree(output);
 	mutex_unlock(&buffer_lock);
 	misc_deregister(&module_misc_device);
 	pr_info("Module unloaded\n");
