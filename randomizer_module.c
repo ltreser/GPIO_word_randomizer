@@ -1,3 +1,4 @@
+#include <linux/fscrypt.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -7,11 +8,12 @@
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-#include <linux/moduleparam.h> 
-#include <linux/gpio/consumer.h> 
-#include <linux/interrupt.h>
-#include <linux/random.h>
+//#include <linux/moduleparam.h> 
+//#include <linux/gpio.h> 
+//#include <linux/interrupt.h>
+//#include <linux/random.h>
 
+#define BUFFER_SIZE 4096
 
 struct s_word 
 {
@@ -98,7 +100,36 @@ static struct miscdevice module_misc_device = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "module_device",
 	.fops = &module_fops,
-};
+}
+
+static int __init module_init_function(void)
+{
+	int ret;
+	ret = misc_register(&module_misc_device);
+	if (ret)
+	{
+		pr_info("Failed to register misc device\n");
+		return ret;
+	}
+	pr_info("Module loaded\n");
+	return 0;
+}
+
+static void __exit module_exit_function(void)
+{
+	t_word *node, *tmp;
+	mutex_lock(&buffer_lock);
+	list_for_each_entry_safe(node, tmp, &word_list, list)
+	{
+		list_del(&node->list);
+		kfree(node->word);
+		kfree(node);
+	}
+	kfree(buffer);
+	mutex_unlock(&buffer_lock);
+	misc_deregister(&module_misc_device);
+	pr_info("Module unloaded\n");
+}
 
 module_init(module_init_function);
 module_exit(module_exit_function);
